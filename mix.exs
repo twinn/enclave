@@ -1,0 +1,71 @@
+defmodule Enclave.MixProject do
+  use Mix.Project
+
+  @version "0.1.0"
+  @source_url "https://github.com/twinn/enclave"
+
+  def project do
+    [
+      app: :enclave,
+      version: @version,
+      elixir: "~> 1.15",
+      start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
+      deps: deps(),
+      description: description(),
+      package: package(),
+      docs: docs(),
+      dialyzer: dialyzer(),
+      source_url: @source_url
+    ]
+  end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
+
+  def application do
+    [
+      extra_applications: [:logger],
+      mod: {Enclave.Application, []}
+    ]
+  end
+
+  defp deps do
+    [
+      {:phoenix_pubsub, "~> 2.1"},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:styler, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp dialyzer do
+    [
+      plt_file: {:no_warnings_as_errors, "priv/plts/project.plt"},
+      plt_core_path: "priv/plts/core.plt",
+      flags: [:error_handling, :unknown, :unmatched_returns]
+    ]
+  end
+
+  defp description do
+    "Process-ancestry-based sandboxing for Phoenix.PubSub. Lets async tests " <>
+      "share a single PubSub instance without leaking broadcasts between tests, " <>
+      "by filtering delivery through the Ecto-style sandbox-ownership model."
+  end
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => @source_url},
+      files: ~w(lib mix.exs README.md LICENSE CHANGELOG.md)
+    ]
+  end
+
+  defp docs do
+    [
+      main: "Enclave",
+      extras: ["README.md", "CHANGELOG.md", "LICENSE"]
+    ]
+  end
+end
