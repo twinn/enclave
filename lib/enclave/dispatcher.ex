@@ -1,16 +1,17 @@
 defmodule Enclave.Dispatcher do
   @moduledoc """
   A `Phoenix.PubSub` dispatcher that filters subscribers through
-  `Enclave.deliverable?/2` before sending.
+  `Enclave.deliverable?/2` before delivery.
 
-  Phoenix.PubSub accepts a dispatcher module as the last argument to
-  `broadcast/4`, `broadcast_from/5`, `local_broadcast/4`, etc. Passing
-  `Enclave.Dispatcher` causes only subscribers in the same enclave as the
-  publishing process to receive the message.
+  `Phoenix.PubSub` accepts a dispatcher module as the last argument to
+  `broadcast/4`, `broadcast_from/5`, and `local_broadcast/4`. Passing
+  `Enclave.Dispatcher` restricts delivery to subscribers that belong to
+  the same enclave as the publishing process.
 
   ## Usage
 
-  Typically you wire this in once via a thin wrapper module in your host app:
+  A thin wrapper module in the host application conditionally injects
+  the dispatcher in test:
 
       defmodule MyApp.PubSub do
         @dispatcher (if Mix.env() == :test, do: Enclave.Dispatcher, else: Phoenix.PubSub)
@@ -24,18 +25,20 @@ defmodule Enclave.Dispatcher do
           do: Phoenix.PubSub.broadcast(__MODULE__, topic, msg, @dispatcher)
       end
 
-  In production `@dispatcher` is `Phoenix.PubSub` (the default), so this
-  indirection compiles away to the same code you would have written by hand.
+  In production, `@dispatcher` is `Phoenix.PubSub` (the default), so the
+  wrapper compiles to a plain pass-through with no runtime overhead.
   """
 
   @doc """
-  Called by `Phoenix.PubSub` via `Registry.dispatch/3`. Filters `entries` by
-  `Enclave.deliverable?/2` and sends the message to survivors.
+  Dispatches `message` to the given `entries`, filtering by enclave ownership.
 
-  Matches Phoenix.PubSub's own default dispatch semantics:
+  Called by `Phoenix.PubSub` via `Registry.dispatch/3`. Each entry is checked
+  with `Enclave.deliverable?/2`; only subscribers in the same enclave as the
+  source process receive the message.
 
-    * `from == :none` → deliver to every (allowed) subscriber
-    * `from == pid`   → deliver to every (allowed) subscriber except `from`
+  When `from` is `:none`, all enclave-matching subscribers receive the message.
+  When `from` is a pid, that pid is additionally excluded from delivery
+  (matching the default `Phoenix.PubSub` broadcast-from semantics).
   """
   @spec dispatch([{pid, term}], pid | :none, term) :: :ok
   def dispatch(entries, :none, message) do

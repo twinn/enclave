@@ -21,25 +21,25 @@ defmodule Enclave.Owners do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
 
-  @doc "Register `pid` as an owner. Idempotent failure: returns `{:error, :already_registered}`."
+  @doc "Registers `pid` as an owner. Returns `{:error, :already_registered}` if already registered."
   def register_owner(pid) when is_pid(pid) do
     GenServer.call(__MODULE__, {:register_owner, pid})
   end
 
-  @doc "Unregister `pid` as an owner and remove all entries pointing to it."
+  @doc "Unregisters `pid` as an owner and removes all entries pointing to it."
   def unregister_owner(pid) when is_pid(pid) do
     GenServer.call(__MODULE__, {:unregister_owner, pid})
   end
 
   @doc """
-  Explicitly associate `allowed` with `owner`. `owner` must already be registered.
+  Associates `allowed` with `owner`'s enclave. `owner` must already be registered.
   """
   def allow(owner, allowed) when is_pid(owner) and is_pid(allowed) do
     GenServer.call(__MODULE__, {:allow, owner, allowed})
   end
 
   @doc """
-  Direct ETS lookup — no ancestry walking. Returns `{:ok, owner_pid}` or `:error`.
+  Performs a direct ETS lookup without ancestry walking. Returns `{:ok, owner_pid}` or `:error`.
   """
   def lookup(pid) when is_pid(pid) do
     case :ets.lookup(@table, pid) do
