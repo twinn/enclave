@@ -13,16 +13,15 @@ defmodule Enclave.Dispatcher do
   Typically you wire this in once via a thin wrapper module in your host app:
 
       defmodule MyApp.PubSub do
-        @name __MODULE__.Instance
         @dispatcher (if Mix.env() == :test, do: Enclave.Dispatcher, else: Phoenix.PubSub)
 
         def child_spec(opts),
-          do: Phoenix.PubSub.child_spec(Keyword.put(opts, :name, @name))
+          do: Phoenix.PubSub.child_spec(Keyword.put(opts, :name, __MODULE__))
 
-        def subscribe(topic), do: Phoenix.PubSub.subscribe(@name, topic)
+        def subscribe(topic), do: Phoenix.PubSub.subscribe(__MODULE__, topic)
 
         def broadcast(topic, msg),
-          do: Phoenix.PubSub.broadcast(@name, topic, msg, @dispatcher)
+          do: Phoenix.PubSub.broadcast(__MODULE__, topic, msg, @dispatcher)
       end
 
   In production `@dispatcher` is `Phoenix.PubSub` (the default), so this

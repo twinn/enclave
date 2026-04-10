@@ -15,7 +15,7 @@ defmodule Enclave do
       :ok = Enclave.start_owner()
 
       # In your app's PubSub wrapper (test env only), pass Enclave.Dispatcher:
-      Phoenix.PubSub.broadcast(MyApp.PubSub.Instance, topic, msg, Enclave.Dispatcher)
+      Phoenix.PubSub.broadcast(MyApp.PubSub, topic, msg, Enclave.Dispatcher)
 
   See `Enclave.Dispatcher` for integration details.
   """

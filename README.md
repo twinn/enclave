@@ -54,26 +54,22 @@ test env only:
 ```elixir
 # lib/my_app/pub_sub.ex
 defmodule MyApp.PubSub do
-  @name __MODULE__.Instance
-
   @dispatcher (if Mix.env() == :test, do: Enclave.Dispatcher, else: Phoenix.PubSub)
 
   def child_spec(opts),
-    do: Phoenix.PubSub.child_spec(Keyword.put(opts, :name, @name))
+    do: Phoenix.PubSub.child_spec(Keyword.put(opts, :name, __MODULE__))
 
-  def name, do: @name
-
-  def subscribe(topic), do: Phoenix.PubSub.subscribe(@name, topic)
-  def unsubscribe(topic), do: Phoenix.PubSub.unsubscribe(@name, topic)
+  def subscribe(topic), do: Phoenix.PubSub.subscribe(__MODULE__, topic)
+  def unsubscribe(topic), do: Phoenix.PubSub.unsubscribe(__MODULE__, topic)
 
   def broadcast(topic, msg),
-    do: Phoenix.PubSub.broadcast(@name, topic, msg, @dispatcher)
+    do: Phoenix.PubSub.broadcast(__MODULE__, topic, msg, @dispatcher)
 
   def broadcast_from(from, topic, msg),
-    do: Phoenix.PubSub.broadcast_from(@name, from, topic, msg, @dispatcher)
+    do: Phoenix.PubSub.broadcast_from(__MODULE__, from, topic, msg, @dispatcher)
 
   def local_broadcast(topic, msg),
-    do: Phoenix.PubSub.local_broadcast(@name, topic, msg, @dispatcher)
+    do: Phoenix.PubSub.local_broadcast(__MODULE__, topic, msg, @dispatcher)
 end
 ```
 
@@ -88,7 +84,7 @@ children = [
 
 # config/config.exs
 config :my_app, MyAppWeb.Endpoint,
-  pubsub_server: MyApp.PubSub.Instance
+  pubsub_server: MyApp.PubSub
 ```
 
 In production `@dispatcher` is `Phoenix.PubSub` (the default), so the
