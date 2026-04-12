@@ -1,20 +1,19 @@
 defmodule Enclave do
   @moduledoc """
-  Process-ancestry-based sandboxing for Phoenix.PubSub (and any pid-keyed
-  fan-out mechanism).
+  Provides process-ancestry-based sandboxing for `Phoenix.PubSub`.
 
-  Enclave lets async tests share a single Phoenix.PubSub instance without
-  leaking broadcasts between tests. Each test process registers itself as an
-  *owner*; processes spawned from (or explicitly allowed by) an owner are
-  members of that owner's *enclave*. A broadcast is only delivered to
-  subscribers whose enclave matches the publisher's.
+  `Enclave` allows concurrent (async) tests to share a single `Phoenix.PubSub`
+  instance without leaking broadcasts between test processes. Each test process
+  registers itself as an *owner* via `start_owner/0`. Processes spawned from, or
+  explicitly allowed by, an owner belong to that owner's *enclave*. A broadcast
+  is delivered only to subscribers whose enclave matches the publisher's.
 
-  ## Basic usage
+  ## Usage
 
       # In test setup:
       :ok = Enclave.start_owner()
 
-      # In your app's PubSub wrapper (test env only), pass Enclave.Dispatcher:
+      # In the application's PubSub wrapper (test env only), pass Enclave.Dispatcher:
       Phoenix.PubSub.broadcast(MyApp.PubSub, topic, msg, Enclave.Dispatcher)
 
   See `Enclave.Dispatcher` for integration details.
@@ -25,21 +24,27 @@ defmodule Enclave do
   @type owner_result :: {:ok, pid} | :no_owner
 
   @doc """
-  Register `self()` as an enclave owner.
+  Registers the calling process as an enclave owner.
+
+  Returns `:ok` if registration succeeds, or `{:error, :already_registered}`
+  if the process is already registered.
   """
   @spec start_owner() :: :ok | {:error, :already_registered}
   def start_owner, do: Owners.register_owner(self())
 
   @doc """
-  Unregister `self()` as an enclave owner. Removes all allowances pointing to
-  this process.
+  Unregisters the calling process as an enclave owner.
+
+  Removes all allowances associated with this process.
   """
   @spec stop_owner() :: :ok
   def stop_owner, do: Owners.unregister_owner(self())
 
   @doc """
-  Explicitly associate `allowed` with `owner`'s enclave. `owner` must already
-  be a registered owner.
+  Associates `allowed` with `owner`'s enclave.
+
+  The `owner` must already be a registered owner. Returns `:ok` on success,
+  or `{:error, :not_an_owner}` if `owner` is not registered.
   """
   @spec allow(pid, pid) :: :ok | {:error, :not_an_owner}
   def allow(owner, allowed) when is_pid(owner) and is_pid(allowed) do
@@ -47,20 +52,19 @@ defmodule Enclave do
   end
 
   @doc """
-  Resolve a pid to its enclave owner.
+  Resolves a pid to its enclave owner.
 
-  Resolution order:
+  Checks the following sources in order:
 
-    1. Direct registration (explicit `start_owner`/`allow`).
-    2. `$callers` chain from the process dictionary.
-    3. `$ancestors` chain from the process dictionary.
+    1. Direct registration via `start_owner/0` or `allow/2`.
+    2. The `$callers` chain in the process dictionary.
+    3. The `$ancestors` chain in the process dictionary.
 
-  Returns `{:ok, owner_pid}` or `:no_owner`.
+  Returns `{:ok, owner_pid}` if an owner is found, or `:no_owner` otherwise.
 
   ## Examples
 
-  A bare `spawn/1` process has no OTP ancestry and no registration, so it
-  is always `:no_owner`:
+  A process created with `spawn/1` has no OTP ancestry and no registration:
 
       iex> pid = spawn(fn -> Process.sleep(:infinity) end)
       iex> Enclave.owner(pid)
@@ -75,20 +79,19 @@ defmodule Enclave do
   end
 
   @doc """
-  Should a message from `from_pid` be delivered to `to_pid`?
+  Determines whether a message from `from_pid` should be delivered to `to_pid`.
 
-  The rule is simple: both pids must resolve to the same owner, OR both must
-  resolve to `:no_owner`. Everything else is dropped. This means:
+  Returns `true` if both pids resolve to the same owner, including both
+  resolving to `:no_owner`. Returns `false` otherwise. This means:
 
-    * same-test deliveries pass
-    * pure-production (unowned) deliveries pass
-    * cross-test deliveries are dropped
-    * test → production and production → test are dropped
+    * Same-enclave deliveries are permitted.
+    * Unowned-to-unowned deliveries are permitted (the production path).
+    * Cross-enclave deliveries are filtered.
+    * Owned-to-unowned and unowned-to-owned deliveries are filtered.
 
   ## Examples
 
-  Two processes with no enclave resolve to `:no_owner`, so they are
-  deliverable (this is what makes the wrapper a no-op in production):
+  Two unowned processes are deliverable to each other:
 
       iex> a = spawn(fn -> Process.sleep(:infinity) end)
       iex> b = spawn(fn -> Process.sleep(:infinity) end)

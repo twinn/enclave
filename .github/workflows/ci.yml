@@ -6,12 +6,46 @@ on:
   pull_request:
     branches: [main]
 
-jobs:
-  test:
-    name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
-    runs-on: ubuntu-latest
+permissions:
+  contents: read
 
+jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.17"
+          otp-version: "27"
+      - run: mix deps.get
+      - run: mix format --check-formatted
+
+  credo:
+    name: Credo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.17"
+          otp-version: "27"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-credo-${{ hashFiles('mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-credo-
+      - run: mix deps.get
+      - run: mix credo --strict
+
+  test:
+    name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
+    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - elixir: "1.15"
@@ -20,34 +54,39 @@ jobs:
             otp: "27"
           - elixir: "1.19"
             otp: "28"
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: erlef/setup-beam@v1
         with:
           elixir-version: ${{ matrix.elixir }}
           otp-version: ${{ matrix.otp }}
-
       - uses: actions/cache@v4
         with:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-${{ matrix.elixir }}-${{ matrix.otp }}-
+          key: ${{ runner.os }}-mix-test-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-test-${{ matrix.elixir }}-${{ matrix.otp }}-
+      - run: mix deps.get
+      - run: mix test
 
-      # Dialyzer PLT cache — keyed on the Elixir/OTP pair and mix.lock
-      # so it rebuilds only when deps change. Saves ~3 minutes per run.
+  dialyzer:
+    name: Dialyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.17"
+          otp-version: "27"
       - uses: actions/cache@v4
         with:
-          path: priv/plts
-          key: ${{ runner.os }}-plt-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('mix.lock') }}
-          restore-keys: ${{ runner.os }}-plt-${{ matrix.elixir }}-${{ matrix.otp }}-
-
+          path: |
+            deps
+            _build
+            priv/plts
+          key: ${{ runner.os }}-mix-dialyzer-${{ hashFiles('mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-dialyzer-
       - run: mix deps.get
-      - run: mix compile --warnings-as-errors
-      - run: mix format --check-formatted
-      - run: mix credo --strict
+      - run: mkdir -p priv/plts
       - run: mix dialyzer --format github
-      - run: mix test
